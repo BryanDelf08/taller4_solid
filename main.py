@@ -1,17 +1,28 @@
 from abc import ABC, abstractmethod
 
 class OrderSystem:
-    def __init__(self, customer_type, items, payment_method):
-        self.customer_type = customer_type
+    def __init__(self, items, apply_discount:ApplyDiscount):
         self.items = items
-        self.payment_method = payment_method
+        self.apply_discount = apply_discount
+        
 
     def calculate_total(self):
         total = sum(self.items)
-        
-        return total
+        total_with_discount = self.apply_discount.apply(total)
+        final_total = ApplyTaxes().apply_taxes(total_with_discount)
+        return final_total
     
-class ApplyDiscount(OrderSystem, ABC):
+class OrderProcessor:
+    def __init__(self, db:Database):
+        self.db = db
+        pass
+    def processing(self, order:OrderSystem, payment:ProcessPayment, report:GenerateReport):
+        total = order.calculate_total()
+        print(report.generate_report(total))
+        payment.process_payment()
+        self.db.save(order_id=2304)
+    
+class ApplyDiscount(ABC):
     @abstractmethod
     def apply(self, total):
         pass
@@ -22,17 +33,17 @@ class ApplyTaxes:
 
 class RegularDiscount(ApplyDiscount):
     def apply(self, total):
-        return self.apply_taxes(total*0.9)  
+        return total*0.9  
       
 class VIPDiscount(ApplyDiscount):
     def apply(self, total):
-        return self.apply_taxes(total*0.8)
+        return total*0.8
     
 class EmployeeDiscount(ApplyDiscount):
     def apply(self, total):
-        return self.apply_taxes(total*0.5)   
+        return total*0.5   
     
-class ProcessPayment(OrderSystem, ABC):
+class ProcessPayment(ABC):
     @abstractmethod
     def process_payment(self):
         pass
@@ -49,7 +60,7 @@ class TransferPayment(ProcessPayment):
     def process_payment(self):
         print("Procesando pago por transferencia bancaria")        
 
-class Database(OrderSystem, ABC):
+class Database(ABC):
     @abstractmethod
     def save(self, order_id):
         pass
@@ -64,33 +75,18 @@ class SaveOrderInPostgreSQL(Database):
 
 class GenerateReport(OrderSystem, ABC):
     @abstractmethod
-    def generate_report(self, format_type):
+    def generate_report(self, total):
         pass
 
 class TextReport(GenerateReport):
     def generate_report(self, total):
-        
         return f"Pedido con total {total}"
 
 class CSVReport(GenerateReport):
     def generate_report(self, total):
-        
         return f"total,{total}"
     
 class JSONReport(GenerateReport):
     def generate_report(self, total):
-      
         return f'{{"total": {total}}}'
     
-    def calculate_total(self):
-        total = sum(self.items)
-        if self.customer_type == "regular":
-            discount = RegularDiscount(self.customer_type, self.items, self.payment_method)
-            total = discount.apply(total)
-        elif self.customer_type == "VIP":
-            discount = VIPDiscount(self.customer_type, self.items, self.payment_method)
-            total = discount.apply(total)
-        elif self.customer_type == "employee":
-            discount = EmployeeDiscount(self.customer_type, self.items, self.payment_method)
-            total = discount.apply(total)
-        return total
